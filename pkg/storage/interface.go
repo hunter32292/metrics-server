@@ -14,10 +14,53 @@
 
 package storage
 
-import "sigs.k8s.io/metrics-server/pkg/api"
+import (
+	"k8s.io/metrics/pkg/apis/metrics"
+
+	"sigs.k8s.io/metrics-server/pkg/api"
+)
 
 type Storage interface {
 	api.MetricsGetter
 	Store(batch *MetricsBatch)
 	Ready() bool
+}
+
+// WatchableStorage extends Storage with watch capabilities
+type WatchableStorage interface {
+	Storage
+
+	// CurrentResourceVersion returns the current resource version as a string
+	CurrentResourceVersion() string
+
+	// GetAllNodeMetrics returns all currently stored node metrics for initial sync
+	GetAllNodeMetrics() []metrics.NodeMetrics
+
+	// GetAllPodMetrics returns all currently stored pod metrics for initial sync
+	GetAllPodMetrics() []metrics.PodMetrics
+
+	// RegisterNodeWatcher registers a watcher for node metrics changes
+	RegisterNodeWatcher(w MetricsWatcher) uint64
+
+	// UnregisterNodeWatcher removes a node metrics watcher
+	UnregisterNodeWatcher(id uint64)
+
+	// RegisterPodWatcher registers a watcher for pod metrics changes
+	RegisterPodWatcher(w MetricsWatcher) uint64
+
+	// UnregisterPodWatcher removes a pod metrics watcher
+	UnregisterPodWatcher(id uint64)
+
+	// RegisterNodeWatcherWithSnapshot atomically registers a watcher and returns
+	// the current snapshot and resource version. This prevents race conditions
+	// where Store() could fire between getting the snapshot and registering.
+	RegisterNodeWatcherWithSnapshot(w MetricsWatcher) (id uint64, allMetrics []metrics.NodeMetrics, rv string)
+
+	// RegisterPodWatcherWithSnapshot atomically registers a watcher and returns
+	// the current snapshot and resource version. This prevents race conditions
+	// where Store() could fire between getting the snapshot and registering.
+	RegisterPodWatcherWithSnapshot(w MetricsWatcher) (id uint64, allMetrics []metrics.PodMetrics, rv string)
+
+	// Shutdown closes all active watchers. Should be called during server shutdown.
+	Shutdown()
 }
